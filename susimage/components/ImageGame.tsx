@@ -1,8 +1,19 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @next/next/no-img-element */
 'use client'
 import React, { useState, useEffect } from 'react';
 import { createApi } from 'unsplash-js';
 
-// Initialize Unsplash API client
+// Define the shape of the Unsplash API response for type safety
+type UnsplashResponse = {
+  response?: {
+    urls: {
+      regular: string;
+    };
+  };
+};
+
+// Initialize the Unsplash API client with your access key
 const unsplash = createApi({
   accessKey: process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY || ''
 });
@@ -21,11 +32,12 @@ const ImageGame = () => {
     real: null,
     ai: null
   });
+  // Randomly determine if the real image should be on the left
   const [isLeftReal] = useState(Math.random() < 0.5);
 
-  // Function to generate AI image using Replicate API
-  const generateAiImage = async (prompt: string) => {
-    // First, create the prediction
+  // Function to generate an AI image using the Replicate API
+  const generateAiImage = async (prompt: string): Promise<string> => {
+    // First, create the prediction request
     const prediction = await fetch("https://api.replicate.com/v1/predictions", {
       method: "POST",
       headers: {
@@ -40,7 +52,7 @@ const ImageGame = () => {
     
     const predictionData = await prediction.json();
     
-    // Poll for the result
+    // Poll for the result until the image is generated
     while (true) {
       const response = await fetch(
         `https://api.replicate.com/v1/predictions/${predictionData.id}`,
@@ -58,7 +70,7 @@ const ImageGame = () => {
         throw new Error("Image generation failed");
       }
       
-      // Wait before polling again
+      // Wait for 1 second before checking again
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   };
@@ -67,18 +79,19 @@ const ImageGame = () => {
   const fetchImages = async () => {
     setLoading(true);
     try {
-      // Fetch real image from Unsplash
+      // Get a random nature photo from Unsplash
       const realImage = await unsplash.photos.getRandom({
         query: 'nature landscape',
         orientation: 'landscape'
-      });
+      }) as UnsplashResponse;
 
-      // Generate AI image using Replicate
+      // Generate a matching AI image
       const aiImageUrl = await generateAiImage(
         "beautiful nature landscape, photorealistic, 4k"
       );
 
-      if (realImage.response && aiImageUrl) {
+      // Update state with both images if we have them
+      if (realImage.response?.urls && aiImageUrl) {
         setImages({
           real: realImage.response.urls.regular,
           ai: aiImageUrl
@@ -90,7 +103,7 @@ const ImageGame = () => {
     setLoading(false);
   };
 
-  // Handle user's guess
+  // Handle the user's guess
   const handleGuess = (guessedReal: boolean) => {
     const correct = guessedReal === isLeftReal;
     setIsCorrect(correct);
@@ -99,33 +112,35 @@ const ImageGame = () => {
     setTotalPlayed(prev => prev + 1);
   };
 
-  // Start next round
+  // Set up the next round
   const nextRound = async () => {
     setShowResult(false);
     setImages({ real: null, ai: null });
     await fetchImages();
   };
 
-  // Initial load of images
+  // Load initial images when component mounts
   useEffect(() => {
     fetchImages();
   }, []);
 
-  // Component UI render
   return (
     <div className="min-h-screen bg-black text-white p-4">
       <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header section with score */}
         <div className="text-center">
           <h1 className="text-4xl font-bold mb-2">Real or AI?</h1>
           <p className="text-xl">Score: {score}/{totalPlayed}</p>
         </div>
 
+        {/* Loading spinner or game interface */}
         {loading ? (
           <div className="flex items-center justify-center h-96">
             <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent"></div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Left image */}
             <div className="flex flex-col">
               <div className="relative aspect-[4/3] bg-gray-900 rounded-t-lg overflow-hidden">
                 {images.real && images.ai && (
@@ -146,6 +161,7 @@ const ImageGame = () => {
               )}
             </div>
 
+            {/* Right image */}
             <div className="flex flex-col">
               <div className="relative aspect-[4/3] bg-gray-900 rounded-t-lg overflow-hidden">
                 {images.real && images.ai && (
@@ -168,6 +184,7 @@ const ImageGame = () => {
           </div>
         )}
 
+        {/* Result and next round button */}
         {showResult && (
           <div className="space-y-4">
             <div className={`p-6 rounded-lg text-center text-lg ${isCorrect ? "bg-green-600" : "bg-red-600"}`}>

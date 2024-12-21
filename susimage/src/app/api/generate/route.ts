@@ -1,3 +1,5 @@
+/* eslint-disable prefer-const */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import Replicate from 'replicate';
 
@@ -33,10 +35,13 @@ export async function POST(req: Request) {
       throw new Error('No output received from Replicate');
     }
 
-  } catch (error) {
+  } catch (error: any) {  // Type the error as 'any' to access .message
     console.error('Detailed API Error:', error);
     return NextResponse.json(
-      { error: 'Failed to generate image', details: error.message },
+      { 
+        error: 'Failed to generate image', 
+        details: error?.message || 'Unknown error' 
+      },
       { status: 500 }
     );
   }
