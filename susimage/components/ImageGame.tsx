@@ -2,11 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import { createApi } from 'unsplash-js';
 
+// Initialize Unsplash API client
 const unsplash = createApi({
   accessKey: process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY || ''
 });
 
+// Get Replicate API key from environment variables
+const replicateApiKey = process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN;
+
 const ImageGame = () => {
+  // Game state management
   const [score, setScore] = useState(0);
   const [totalPlayed, setTotalPlayed] = useState(0);
   const [showResult, setShowResult] = useState(false);
@@ -18,54 +23,74 @@ const ImageGame = () => {
   });
   const [isLeftReal] = useState(Math.random() < 0.5);
 
-  useEffect(() => {
-    fetchImages();
-  }, []);
+  // Function to generate AI image using Replicate API
+  const generateAiImage = async (prompt: string) => {
+    // First, create the prediction
+    const prediction = await fetch("https://api.replicate.com/v1/predictions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Token ${replicateApiKey}`,
+      },
+      body: JSON.stringify({
+        version: "39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
+        input: { prompt }
+      })
+    });
+    
+    const predictionData = await prediction.json();
+    
+    // Poll for the result
+    while (true) {
+      const response = await fetch(
+        `https://api.replicate.com/v1/predictions/${predictionData.id}`,
+        {
+          headers: {
+            Authorization: `Token ${replicateApiKey}`,
+          },
+        }
+      );
+      const data = await response.json();
+      
+      if (data.status === "succeeded") {
+        return data.output[0];
+      } else if (data.status === "failed") {
+        throw new Error("Image generation failed");
+      }
+      
+      // Wait before polling again
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  };
 
+  // Function to fetch both real and AI images
   const fetchImages = async () => {
     setLoading(true);
     try {
-      // Fetch real image
+      // Fetch real image from Unsplash
       const realImage = await unsplash.photos.getRandom({
         query: 'nature landscape',
         orientation: 'landscape'
       });
-  
-      // Generate AI image
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt: "beautiful nature landscape, photorealistic, 4k" }),
-      });
-      
-      const aiData = await response.json();
-  
-      if (!response.ok) {
-        throw new Error(aiData.error || 'Failed to generate AI image');
-      }
-  
-      if (realImage.response && aiData.url) {
-        console.log('Setting images:', {
-          real: realImage.response.urls.regular,
-          ai: aiData.url
-        });
-        
+
+      // Generate AI image using Replicate
+      const aiImageUrl = await generateAiImage(
+        "beautiful nature landscape, photorealistic, 4k"
+      );
+
+      if (realImage.response && aiImageUrl) {
         setImages({
           real: realImage.response.urls.regular,
-          ai: aiData.url
+          ai: aiImageUrl
         });
-      } else {
-        throw new Error('Failed to get both images');
       }
     } catch (error) {
       console.error('Failed to fetch images:', error);
-      // Optionally show an error message to the user
     }
     setLoading(false);
   };
 
+  // Handle user's guess
   const handleGuess = (guessedReal: boolean) => {
     const correct = guessedReal === isLeftReal;
     setIsCorrect(correct);
@@ -74,12 +99,19 @@ const ImageGame = () => {
     setTotalPlayed(prev => prev + 1);
   };
 
+  // Start next round
   const nextRound = async () => {
     setShowResult(false);
     setImages({ real: null, ai: null });
     await fetchImages();
   };
 
+  // Initial load of images
+  useEffect(() => {
+    fetchImages();
+  }, []);
+
+  // Component UI render
   return (
     <div className="min-h-screen bg-black text-white p-4">
       <div className="max-w-6xl mx-auto space-y-8">

@@ -1,7 +1,11 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'export',  // Enable static exports
+  images: {
+    unoptimized: true, // Required for static export
+  },
+  basePath: '/susimage', // Replace with your actual repository name
+  assetPrefix: '/susimage', // Replace with your actual repository name
+}
 
-const nextConfig: NextConfig = {
-  /* config options here */
-};
-
-export default nextConfig;
+module.exports = nextConfig
